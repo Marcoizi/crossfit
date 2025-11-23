@@ -1,520 +1,533 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Dumbbell, Activity, Zap, SkipForward, SkipBack, ChevronLeft, ChevronRight } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout Timer - Muscu/CrossFit</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes spin-slow {
+            from { transform: rotate(-15deg); }
+            to { transform: rotate(15deg); }
+        }
+        .animate-spin-slow {
+            animation: spin-slow 1s ease-in-out infinite alternate;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-const WORKOUTS = {
-  pectoraux: {
-    name: "PECTORAUX",
-    icon: Dumbbell,
-    color: "bg-red-500",
-    exercises: [
-      { name: "Pompes", duration: 30, type: "work" },
-      { name: "Pause", duration: 30, type: "rest" },
-      { name: "Pompes release hand", duration: 30, type: "work" },
-      { name: "Pause", duration: 30, type: "rest" },
-      { name: "Pompes mains sur chaise", duration: 30, type: "work" },
-      { name: "Pause", duration: 30, type: "rest" },
-      { name: "Pompes mains écartées", duration: 30, type: "work" },
-      { name: "Pause", duration: 30, type: "rest" },
-      { name: "Pompes décalées", duration: 30, type: "work" }
-    ]
-  },
-  bicepsTriceps: {
-    name: "BICEPS TRICEPS",
-    icon: Dumbbell,
-    color: "bg-purple-500",
-    exercises: [
-      { name: "Pompes sur chaise", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Dips chaise", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Soulever poids droit", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Soulever poids gauche", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Dips au sol", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" }
-    ]
-  },
-  abdos: {
-    name: "ABDOS",
-    icon: Activity,
-    color: "bg-blue-500",
-    exercises: [
-      { name: "Reverse crunch", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Russian twist", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Sit up", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Abdos portefeuille", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Circle", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Jambes tendues droite-gauche", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Spider", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Touche pieds", duration: 45, type: "work" },
-      { name: "Pause", duration: 15, type: "rest" },
-      { name: "Gainage", duration: 45, type: "work" }
-    ]
-  }
-};
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { Play, Pause, RotateCcw, Dumbbell, Activity, Zap, SkipForward, SkipBack, ChevronLeft, ChevronRight } = lucide;
 
-export default function WorkoutTimer() {
-  const [selectedWorkout, setSelectedWorkout] = useState(null);
-  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isFinished, setIsFinished] = useState(false);
-  const audioContextRef = useRef(null);
-  const timerRef = useRef(null);
-  const hasBeepedRef = useRef(false);
-
-  // Initialiser l'AudioContext
-  useEffect(() => {
-    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-    return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-    };
-  }, []);
-
-  // Son de bip
-  const playBeep = (frequency = 800, duration = 200) => {
-    if (!audioContextRef.current) return;
-    
-    const oscillator = audioContextRef.current.createOscillator();
-    const gainNode = audioContextRef.current.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContextRef.current.destination);
-    
-    oscillator.frequency.value = frequency;
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + duration / 1000);
-    
-    oscillator.start(audioContextRef.current.currentTime);
-    oscillator.stop(audioContextRef.current.currentTime + duration / 1000);
-  };
-
-  // Double bip
-  const playDoubleBeep = () => {
-    playBeep(600, 150);
-    setTimeout(() => playBeep(600, 150), 200);
-  };
-
-  // Timer
-  useEffect(() => {
-    if (isRunning && timeLeft > 0) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            // Fin de l'exercice
-            playBeep(1000, 300);
-            hasBeepedRef.current = false;
-            const nextIndex = currentExerciseIndex + 1;
-            if (nextIndex < selectedWorkout.exercises.length) {
-              setCurrentExerciseIndex(nextIndex);
-              return selectedWorkout.exercises[nextIndex].duration;
-            } else {
-              setIsRunning(false);
-              setIsFinished(true);
-              return 0;
-            }
-          } else if (prev === 5 && !hasBeepedRef.current) {
-            // Double bip à 5 secondes
-            playDoubleBeep();
-            hasBeepedRef.current = true;
+        const WORKOUTS = {
+          pectoraux: {
+            name: "PECTORAUX",
+            icon: Dumbbell,
+            color: "bg-red-500",
+            exercises: [
+              { name: "Pompes", duration: 30, type: "work" },
+              { name: "Pause", duration: 30, type: "rest" },
+              { name: "Pompes release hand", duration: 30, type: "work" },
+              { name: "Pause", duration: 30, type: "rest" },
+              { name: "Pompes mains sur chaise", duration: 30, type: "work" },
+              { name: "Pause", duration: 30, type: "rest" },
+              { name: "Pompes mains écartées", duration: 30, type: "work" },
+              { name: "Pause", duration: 30, type: "rest" },
+              { name: "Pompes décalées", duration: 30, type: "work" }
+            ]
+          },
+          bicepsTriceps: {
+            name: "BICEPS TRICEPS",
+            icon: Dumbbell,
+            color: "bg-purple-500",
+            exercises: [
+              { name: "Pompes sur chaise", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Dips chaise", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Soulever poids droit", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Soulever poids gauche", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Dips au sol", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" }
+            ]
+          },
+          abdos: {
+            name: "ABDOS",
+            icon: Activity,
+            color: "bg-blue-500",
+            exercises: [
+              { name: "Reverse crunch", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Russian twist", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Sit up", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Abdos portefeuille", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Circle", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Jambes tendues droite-gauche", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Spider", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Touche pieds", duration: 45, type: "work" },
+              { name: "Pause", duration: 15, type: "rest" },
+              { name: "Gainage", duration: 45, type: "work" }
+            ]
           }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    }
+        };
 
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [isRunning, timeLeft, currentExerciseIndex, selectedWorkout]);
+        function WorkoutTimer() {
+          const [selectedWorkout, setSelectedWorkout] = useState(null);
+          const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
+          const [timeLeft, setTimeLeft] = useState(0);
+          const [isRunning, setIsRunning] = useState(false);
+          const [isFinished, setIsFinished] = useState(false);
+          const audioContextRef = useRef(null);
+          const timerRef = useRef(null);
+          const hasBeepedRef = useRef(false);
 
-  const startWorkout = (workoutKey) => {
-    const workout = WORKOUTS[workoutKey];
-    setSelectedWorkout(workout);
-    setCurrentExerciseIndex(0);
-    setTimeLeft(workout.exercises[0].duration);
-    setIsFinished(false);
-    setIsRunning(false);
-    hasBeepedRef.current = false;
-  };
+          useEffect(() => {
+            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+            return () => {
+              if (audioContextRef.current) {
+                audioContextRef.current.close();
+              }
+            };
+          }, []);
 
-  const toggleTimer = () => {
-    setIsRunning(!isRunning);
-  };
+          const playBeep = (frequency = 800, duration = 200) => {
+            if (!audioContextRef.current) return;
+            
+            const oscillator = audioContextRef.current.createOscillator();
+            const gainNode = audioContextRef.current.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContextRef.current.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + duration / 1000);
+            
+            oscillator.start(audioContextRef.current.currentTime);
+            oscillator.stop(audioContextRef.current.currentTime + duration / 1000);
+          };
 
-  const resetWorkout = () => {
-    setIsRunning(false);
-    setCurrentExerciseIndex(0);
-    if (selectedWorkout) {
-      setTimeLeft(selectedWorkout.exercises[0].duration);
-    }
-    setIsFinished(false);
-    hasBeepedRef.current = false;
-  };
+          const playDoubleBeep = () => {
+            playBeep(600, 150);
+            setTimeout(() => playBeep(600, 150), 200);
+          };
 
-  const backToMenu = () => {
-    setSelectedWorkout(null);
-    setIsRunning(false);
-    setCurrentExerciseIndex(0);
-    setTimeLeft(0);
-    setIsFinished(false);
-    hasBeepedRef.current = false;
-  };
+          useEffect(() => {
+            if (isRunning && timeLeft > 0) {
+              timerRef.current = setInterval(() => {
+                setTimeLeft(prev => {
+                  if (prev <= 1) {
+                    playBeep(1000, 300);
+                    hasBeepedRef.current = false;
+                    const nextIndex = currentExerciseIndex + 1;
+                    if (nextIndex < selectedWorkout.exercises.length) {
+                      setCurrentExerciseIndex(nextIndex);
+                      return selectedWorkout.exercises[nextIndex].duration;
+                    } else {
+                      setIsRunning(false);
+                      setIsFinished(true);
+                      return 0;
+                    }
+                  } else if (prev === 5 && !hasBeepedRef.current) {
+                    playDoubleBeep();
+                    hasBeepedRef.current = true;
+                  }
+                  return prev - 1;
+                });
+              }, 1000);
+            } else {
+              if (timerRef.current) {
+                clearInterval(timerRef.current);
+              }
+            }
 
-  const skipTime = (seconds) => {
-    setTimeLeft(prev => {
-      const newTime = prev - seconds; // INVERSÉ : on soustrait pour avancer dans le temps
-      if (newTime <= 0) return 1;
-      if (newTime > currentExercise.duration) return currentExercise.duration;
-      hasBeepedRef.current = false; // Reset le flag si on change le temps
-      return newTime;
-    });
-  };
+            return () => {
+              if (timerRef.current) {
+                clearInterval(timerRef.current);
+              }
+            };
+          }, [isRunning, timeLeft, currentExerciseIndex, selectedWorkout]);
 
-  const previousExercise = () => {
-    if (currentExerciseIndex > 0) {
-      const prevIndex = currentExerciseIndex - 1;
-      setCurrentExerciseIndex(prevIndex);
-      setTimeLeft(selectedWorkout.exercises[prevIndex].duration);
-      hasBeepedRef.current = false;
-    }
-  };
+          const startWorkout = (workoutKey) => {
+            const workout = WORKOUTS[workoutKey];
+            setSelectedWorkout(workout);
+            setCurrentExerciseIndex(0);
+            setTimeLeft(workout.exercises[0].duration);
+            setIsFinished(false);
+            setIsRunning(false);
+            hasBeepedRef.current = false;
+          };
 
-  const nextExercise = () => {
-    if (currentExerciseIndex < selectedWorkout.exercises.length - 1) {
-      const nextIndex = currentExerciseIndex + 1;
-      setCurrentExerciseIndex(nextIndex);
-      setTimeLeft(selectedWorkout.exercises[nextIndex].duration);
-      hasBeepedRef.current = false;
-    }
-  };
+          const toggleTimer = () => {
+            setIsRunning(!isRunning);
+          };
 
-  const getExerciseAnimation = (exerciseName) => {
-    const name = exerciseName.toLowerCase();
-    
-    // Pompes variations
-    if (name.includes('pompe')) {
-      return (
-        <div className="flex justify-center items-center h-32">
-          <div className="relative">
-            <div className="animate-bounce">
-              <div className="w-16 h-4 bg-white rounded-full"></div>
-              <div className="w-4 h-12 bg-white rounded mx-auto -mt-2"></div>
-              <div className="flex gap-8 -mt-2">
-                <div className="w-3 h-10 bg-white rounded"></div>
-                <div className="w-3 h-10 bg-white rounded"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    // Dips
-    if (name.includes('dips')) {
-      return (
-        <div className="flex justify-center items-center h-32">
-          <div className="relative animate-bounce">
-            <div className="w-12 h-4 bg-white rounded-full mb-1"></div>
-            <div className="w-4 h-10 bg-white rounded mx-auto"></div>
-            <div className="flex gap-4 justify-center -mt-1">
-              <div className="w-2 h-8 bg-white rounded"></div>
-              <div className="w-2 h-8 bg-white rounded"></div>
-            </div>
-            <div className="absolute -left-6 top-8 w-12 h-1 bg-white"></div>
-            <div className="absolute -right-6 top-8 w-12 h-1 bg-white"></div>
-          </div>
-        </div>
-      );
-    }
-    
-    // Soulever poids
-    if (name.includes('soulever') || name.includes('poids')) {
-      return (
-        <div className="flex justify-center items-center h-32">
-          <div className="relative">
-            <div className="animate-pulse">
-              <div className="w-12 h-4 bg-white rounded-full mb-2"></div>
-              <div className="w-4 h-12 bg-white rounded mx-auto"></div>
-              <div className="flex gap-16 -mt-10 justify-center">
-                <div className="flex items-center">
-                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                  <div className="w-6 h-1 bg-white"></div>
-                  <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    // Abdos - Crunch / Sit up
-    if (name.includes('crunch') || name.includes('sit up')) {
-      return (
-        <div className="flex justify-center items-center h-32">
-          <div className="relative animate-pulse">
-            <div className="w-10 h-3 bg-white rounded-full mb-1"></div>
-            <div className="w-3 h-8 bg-white rounded mx-auto transform rotate-45"></div>
-            <div className="flex gap-6 -mt-2">
-              <div className="w-2 h-6 bg-white rounded"></div>
-              <div className="w-2 h-6 bg-white rounded"></div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    // Russian twist
-    if (name.includes('russian') || name.includes('twist')) {
-      return (
-        <div className="flex justify-center items-center h-32">
-          <div className="relative animate-spin-slow">
-            <div className="w-10 h-3 bg-white rounded-full mb-1"></div>
-            <div className="w-3 h-10 bg-white rounded mx-auto"></div>
-            <div className="flex gap-10 -mt-2 justify-center">
-              <div className="w-2 h-6 bg-white rounded"></div>
-              <div className="w-2 h-6 bg-white rounded"></div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    // Spider / Gainage
-    if (name.includes('spider') || name.includes('gainage')) {
-      return (
-        <div className="flex justify-center items-center h-32">
-          <div className="relative">
-            <div className="w-12 h-3 bg-white rounded-full mb-1"></div>
-            <div className="w-3 h-8 bg-white rounded mx-auto"></div>
-            <div className="flex gap-8">
-              <div className="w-2 h-8 bg-white rounded"></div>
-              <div className="w-2 h-8 bg-white rounded"></div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    // Jambes / Touche pieds
-    if (name.includes('jambe') || name.includes('pied')) {
-      return (
-        <div className="flex justify-center items-center h-32">
-          <div className="relative animate-bounce">
-            <div className="w-10 h-3 bg-white rounded-full mb-2"></div>
-            <div className="w-3 h-6 bg-white rounded mx-auto mb-1"></div>
-            <div className="flex gap-4 justify-center">
-              <div className="w-2 h-10 bg-white rounded transform rotate-12"></div>
-              <div className="w-2 h-10 bg-white rounded transform -rotate-12"></div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    // Repos
-    if (name.includes('pause')) {
-      return (
-        <div className="flex justify-center items-center h-32">
-          <div className="text-6xl animate-pulse">💤</div>
-        </div>
-      );
-    }
-    
-    // Default
-    return (
-      <div className="flex justify-center items-center h-32">
-        <div className="relative animate-bounce">
-          <div className="w-12 h-4 bg-white rounded-full mb-1"></div>
-          <div className="w-4 h-12 bg-white rounded mx-auto"></div>
-          <div className="flex gap-6">
-            <div className="w-3 h-10 bg-white rounded"></div>
-            <div className="w-3 h-10 bg-white rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+          const resetWorkout = () => {
+            setIsRunning(false);
+            setCurrentExerciseIndex(0);
+            if (selectedWorkout) {
+              setTimeLeft(selectedWorkout.exercises[0].duration);
+            }
+            setIsFinished(false);
+            hasBeepedRef.current = false;
+          };
 
-  if (!selectedWorkout) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <Zap className="w-16 h-16 mx-auto mb-4 text-yellow-400" />
-            <h1 className="text-4xl font-bold text-white mb-2">Workout Timer</h1>
-            <p className="text-gray-400">Choisissez votre programme</p>
-          </div>
-          
-          <div className="space-y-4">
-            {Object.entries(WORKOUTS).map(([key, workout]) => {
-              const Icon = workout.icon;
+          const backToMenu = () => {
+            setSelectedWorkout(null);
+            setIsRunning(false);
+            setCurrentExerciseIndex(0);
+            setTimeLeft(0);
+            setIsFinished(false);
+            hasBeepedRef.current = false;
+          };
+
+          const skipTime = (seconds) => {
+            setTimeLeft(prev => {
+              const newTime = prev - seconds;
+              if (newTime <= 0) return 1;
+              if (newTime > currentExercise.duration) return currentExercise.duration;
+              hasBeepedRef.current = false;
+              return newTime;
+            });
+          };
+
+          const previousExercise = () => {
+            if (currentExerciseIndex > 0) {
+              const prevIndex = currentExerciseIndex - 1;
+              setCurrentExerciseIndex(prevIndex);
+              setTimeLeft(selectedWorkout.exercises[prevIndex].duration);
+              hasBeepedRef.current = false;
+            }
+          };
+
+          const nextExercise = () => {
+            if (currentExerciseIndex < selectedWorkout.exercises.length - 1) {
+              const nextIndex = currentExerciseIndex + 1;
+              setCurrentExerciseIndex(nextIndex);
+              setTimeLeft(selectedWorkout.exercises[nextIndex].duration);
+              hasBeepedRef.current = false;
+            }
+          };
+
+          const getExerciseAnimation = (exerciseName) => {
+            const name = exerciseName.toLowerCase();
+            
+            if (name.includes('pompe')) {
               return (
-                <button
-                  key={key}
-                  onClick={() => startWorkout(key)}
-                  className={`w-full ${workout.color} hover:opacity-90 text-white p-6 rounded-2xl shadow-2xl transform hover:scale-105 transition-all duration-200 flex items-center justify-between`}
-                >
-                  <div className="flex items-center gap-4">
-                    <Icon className="w-8 h-8" />
-                    <div className="text-left">
-                      <h2 className="text-2xl font-bold">{workout.name}</h2>
-                      <p className="text-sm opacity-90">{workout.exercises.length} exercices</p>
+                <div className="flex justify-center items-center h-32">
+                  <div className="relative">
+                    <div className="animate-bounce">
+                      <div className="w-16 h-4 bg-white rounded-full"></div>
+                      <div className="w-4 h-12 bg-white rounded mx-auto -mt-2"></div>
+                      <div className="flex gap-8 -mt-2">
+                        <div className="w-3 h-10 bg-white rounded"></div>
+                        <div className="w-3 h-10 bg-white rounded"></div>
+                      </div>
                     </div>
                   </div>
-                  <Play className="w-6 h-6" />
-                </button>
+                </div>
               );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const currentExercise = selectedWorkout.exercises[currentExerciseIndex];
-  const progress = ((currentExerciseIndex + 1) / selectedWorkout.exercises.length) * 100;
-  const isRest = currentExercise.type === 'rest';
-
-  return (
-    <div className={`min-h-screen transition-colors duration-500 ${isRest ? 'bg-gradient-to-br from-green-900 via-green-800 to-green-900' : 'bg-gradient-to-br from-orange-900 via-red-800 to-orange-900'} flex flex-col items-center justify-center p-4`}>
-      {isFinished ? (
-        <div className="text-center animate-bounce">
-          <div className="text-8xl mb-4">🎉</div>
-          <h2 className="text-5xl font-bold text-white mb-4">BRAVO !</h2>
-          <p className="text-2xl text-white mb-8">Workout terminé !</p>
-          <button
-            onClick={backToMenu}
-            className="bg-white text-gray-900 px-8 py-4 rounded-full text-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-2xl"
-          >
-            Retour au menu
-          </button>
-        </div>
-      ) : (
-        <div className="w-full max-w-md">
-          <div className="mb-6">
-            <button
-              onClick={backToMenu}
-              className="text-white hover:text-gray-300 transition-colors text-sm"
-            >
-              ← Retour au menu
-            </button>
-          </div>
-
-          <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-3xl p-8 shadow-2xl">
-            <div className="text-center mb-8">
-              <h2 className="text-white text-2xl font-bold mb-2">{selectedWorkout.name}</h2>
-              <div className="flex items-center justify-center gap-2 text-white text-sm">
-                <span>Exercice {currentExerciseIndex + 1}/{selectedWorkout.exercises.length}</span>
+            }
+            
+            if (name.includes('dips')) {
+              return (
+                <div className="flex justify-center items-center h-32">
+                  <div className="relative animate-bounce">
+                    <div className="w-12 h-4 bg-white rounded-full mb-1"></div>
+                    <div className="w-4 h-10 bg-white rounded mx-auto"></div>
+                    <div className="flex gap-4 justify-center -mt-1">
+                      <div className="w-2 h-8 bg-white rounded"></div>
+                      <div className="w-2 h-8 bg-white rounded"></div>
+                    </div>
+                    <div className="absolute -left-6 top-8 w-12 h-1 bg-white"></div>
+                    <div className="absolute -right-6 top-8 w-12 h-1 bg-white"></div>
+                  </div>
+                </div>
+              );
+            }
+            
+            if (name.includes('soulever') || name.includes('poids')) {
+              return (
+                <div className="flex justify-center items-center h-32">
+                  <div className="relative">
+                    <div className="animate-pulse">
+                      <div className="w-12 h-4 bg-white rounded-full mb-2"></div>
+                      <div className="w-4 h-12 bg-white rounded mx-auto"></div>
+                      <div className="flex gap-16 -mt-10 justify-center">
+                        <div className="flex items-center">
+                          <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                          <div className="w-6 h-1 bg-white"></div>
+                          <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            if (name.includes('crunch') || name.includes('sit up')) {
+              return (
+                <div className="flex justify-center items-center h-32">
+                  <div className="relative animate-pulse">
+                    <div className="w-10 h-3 bg-white rounded-full mb-1"></div>
+                    <div className="w-3 h-8 bg-white rounded mx-auto transform rotate-45"></div>
+                    <div className="flex gap-6 -mt-2">
+                      <div className="w-2 h-6 bg-white rounded"></div>
+                      <div className="w-2 h-6 bg-white rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            if (name.includes('russian') || name.includes('twist')) {
+              return (
+                <div className="flex justify-center items-center h-32">
+                  <div className="relative animate-spin-slow">
+                    <div className="w-10 h-3 bg-white rounded-full mb-1"></div>
+                    <div className="w-3 h-10 bg-white rounded mx-auto"></div>
+                    <div className="flex gap-10 -mt-2 justify-center">
+                      <div className="w-2 h-6 bg-white rounded"></div>
+                      <div className="w-2 h-6 bg-white rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            if (name.includes('spider') || name.includes('gainage')) {
+              return (
+                <div className="flex justify-center items-center h-32">
+                  <div className="relative">
+                    <div className="w-12 h-3 bg-white rounded-full mb-1"></div>
+                    <div className="w-3 h-8 bg-white rounded mx-auto"></div>
+                    <div className="flex gap-8">
+                      <div className="w-2 h-8 bg-white rounded"></div>
+                      <div className="w-2 h-8 bg-white rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            if (name.includes('jambe') || name.includes('pied')) {
+              return (
+                <div className="flex justify-center items-center h-32">
+                  <div className="relative animate-bounce">
+                    <div className="w-10 h-3 bg-white rounded-full mb-2"></div>
+                    <div className="w-3 h-6 bg-white rounded mx-auto mb-1"></div>
+                    <div className="flex gap-4 justify-center">
+                      <div className="w-2 h-10 bg-white rounded transform rotate-12"></div>
+                      <div className="w-2 h-10 bg-white rounded transform -rotate-12"></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            if (name.includes('pause')) {
+              return (
+                <div className="flex justify-center items-center h-32">
+                  <div className="text-6xl animate-pulse">💤</div>
+                </div>
+              );
+            }
+            
+            return (
+              <div className="flex justify-center items-center h-32">
+                <div className="relative animate-bounce">
+                  <div className="w-12 h-4 bg-white rounded-full mb-1"></div>
+                  <div className="w-4 h-12 bg-white rounded mx-auto"></div>
+                  <div className="flex gap-6">
+                    <div className="w-3 h-10 bg-white rounded"></div>
+                    <div className="w-3 h-10 bg-white rounded"></div>
+                  </div>
+                </div>
               </div>
-              <div className="w-full bg-white bg-opacity-20 rounded-full h-2 mt-4">
-                <div 
-                  className="bg-white h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
+            );
+          };
 
-            <div className="text-center mb-8">
-              <div className={`inline-block px-6 py-2 rounded-full mb-4 ${isRest ? 'bg-green-500' : 'bg-orange-500'} text-white font-bold`}>
-                {isRest ? '💤 REPOS' : '💪 EXERCICE'}
+          if (!selectedWorkout) {
+            return (
+              <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
+                <div className="w-full max-w-md">
+                  <div className="text-center mb-8">
+                    <Zap className="w-16 h-16 mx-auto mb-4 text-yellow-400" />
+                    <h1 className="text-4xl font-bold text-white mb-2">Workout Timer</h1>
+                    <p className="text-gray-400">Choisissez votre programme</p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {Object.entries(WORKOUTS).map(([key, workout]) => {
+                      const Icon = workout.icon;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => startWorkout(key)}
+                          className={`w-full ${workout.color} hover:opacity-90 text-white p-6 rounded-2xl shadow-2xl transform hover:scale-105 transition-all duration-200 flex items-center justify-between`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <Icon className="w-8 h-8" />
+                            <div className="text-left">
+                              <h2 className="text-2xl font-bold">{workout.name}</h2>
+                              <p className="text-sm opacity-90">{workout.exercises.length} exercices</p>
+                            </div>
+                          </div>
+                          <Play className="w-6 h-6" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-              <h3 className="text-white text-3xl font-bold mb-4">{currentExercise.name}</h3>
-              
-              {/* Animation du bonhomme */}
-              <div className="mb-6">
-                {getExerciseAnimation(currentExercise.name)}
-              </div>
-              
-              <div className={`text-9xl font-bold mb-4 transition-all duration-300 ${timeLeft <= 5 ? 'text-yellow-300 animate-pulse' : 'text-white'}`}>
-                {timeLeft}
-              </div>
-              <p className="text-white text-lg opacity-75">secondes</p>
-            </div>
+            );
+          }
 
-            {/* Navigation exercices */}
-            <div className="flex gap-2 justify-center mb-4">
-              <button
-                onClick={previousExercise}
-                disabled={currentExerciseIndex === 0}
-                className={`${currentExerciseIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-opacity-30'} bg-white bg-opacity-20 text-white px-4 py-2 rounded-full transition-all shadow-xl flex items-center gap-2`}
-                title="Exercice précédent"
-              >
-                <ChevronLeft className="w-5 h-5" />
-                <span className="text-sm">Précédent</span>
-              </button>
-              <button
-                onClick={nextExercise}
-                disabled={currentExerciseIndex === selectedWorkout.exercises.length - 1}
-                className={`${currentExerciseIndex === selectedWorkout.exercises.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-opacity-30'} bg-white bg-opacity-20 text-white px-4 py-2 rounded-full transition-all shadow-xl flex items-center gap-2`}
-                title="Exercice suivant"
-              >
-                <span className="text-sm">Suivant</span>
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
+          const currentExercise = selectedWorkout.exercises[currentExerciseIndex];
+          const progress = ((currentExerciseIndex + 1) / selectedWorkout.exercises.length) * 100;
+          const isRest = currentExercise.type === 'rest';
 
-            <div className="flex gap-3 justify-center items-center">
-              <button
-                onClick={() => skipTime(-10)}
-                className="bg-white bg-opacity-20 text-white p-4 rounded-full hover:bg-opacity-30 transition-all transform hover:scale-110 shadow-2xl"
-                title="Reculer de 10 secondes"
-              >
-                <SkipBack className="w-6 h-6" />
-              </button>
-              <button
-                onClick={toggleTimer}
-                className="bg-white text-gray-900 p-6 rounded-full hover:bg-gray-100 transition-all transform hover:scale-110 shadow-2xl"
-              >
-                {isRunning ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8" />}
-              </button>
-              <button
-                onClick={() => skipTime(10)}
-                className="bg-white bg-opacity-20 text-white p-4 rounded-full hover:bg-opacity-30 transition-all transform hover:scale-110 shadow-2xl"
-                title="Avancer de 10 secondes"
-              >
-                <SkipForward className="w-6 h-6" />
-              </button>
-              <button
-                onClick={resetWorkout}
-                className="bg-white bg-opacity-20 text-white p-4 rounded-full hover:bg-opacity-30 transition-all transform hover:scale-110 shadow-2xl"
-                title="Recommencer"
-              >
-                <RotateCcw className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
+          return (
+            <div className={`min-h-screen transition-colors duration-500 ${isRest ? 'bg-gradient-to-br from-green-900 via-green-800 to-green-900' : 'bg-gradient-to-br from-orange-900 via-red-800 to-orange-900'} flex flex-col items-center justify-center p-4`}>
+              {isFinished ? (
+                <div className="text-center animate-bounce">
+                  <div className="text-8xl mb-4">🎉</div>
+                  <h2 className="text-5xl font-bold text-white mb-4">BRAVO !</h2>
+                  <p className="text-2xl text-white mb-8">Workout terminé !</p>
+                  <button
+                    onClick={backToMenu}
+                    className="bg-white text-gray-900 px-8 py-4 rounded-full text-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-2xl"
+                  >
+                    Retour au menu
+                  </button>
+                </div>
+              ) : (
+                <div className="w-full max-w-md">
+                  <div className="mb-6">
+                    <button
+                      onClick={backToMenu}
+                      className="text-white hover:text-gray-300 transition-colors text-sm"
+                    >
+                      ← Retour au menu
+                    </button>
+                  </div>
 
-          {/* Aperçu du prochain exercice !*/}
-          {currentExerciseIndex < selectedWorkout.exercises.length - 1 && (
-            <div className="mt-6 text-center">
-              <p className="text-white text-sm opacity-75 mb-2">Prochain :</p>
-              <p className="text-white text-lg font-semibold">
-                {selectedWorkout.exercises[currentExerciseIndex + 1].name}
-              </p>
+                  <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-3xl p-8 shadow-2xl">
+                    <div className="text-center mb-8">
+                      <h2 className="text-white text-2xl font-bold mb-2">{selectedWorkout.name}</h2>
+                      <div className="flex items-center justify-center gap-2 text-white text-sm">
+                        <span>Exercice {currentExerciseIndex + 1}/{selectedWorkout.exercises.length}</span>
+                      </div>
+                      <div className="w-full bg-white bg-opacity-20 rounded-full h-2 mt-4">
+                        <div 
+                          className="bg-white h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="text-center mb-8">
+                      <div className={`inline-block px-6 py-2 rounded-full mb-4 ${isRest ? 'bg-green-500' : 'bg-orange-500'} text-white font-bold`}>
+                        {isRest ? '💤 REPOS' : '💪 EXERCICE'}
+                      </div>
+                      <h3 className="text-white text-3xl font-bold mb-4">{currentExercise.name}</h3>
+                      
+                      <div className="mb-6">
+                        {getExerciseAnimation(currentExercise.name)}
+                      </div>
+                      
+                      <div className={`text-9xl font-bold mb-4 transition-all duration-300 ${timeLeft <= 5 ? 'text-yellow-300 animate-pulse' : 'text-white'}`}>
+                        {timeLeft}
+                      </div>
+                      <p className="text-white text-lg opacity-75">secondes</p>
+                    </div>
+
+                    <div className="flex gap-2 justify-center mb-4">
+                      <button
+                        onClick={previousExercise}
+                        disabled={currentExerciseIndex === 0}
+                        className={`${currentExerciseIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-opacity-30'} bg-white bg-opacity-20 text-white px-4 py-2 rounded-full transition-all shadow-xl flex items-center gap-2`}
+                        title="Exercice précédent"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                        <span className="text-sm">Précédent</span>
+                      </button>
+                      <button
+                        onClick={nextExercise}
+                        disabled={currentExerciseIndex === selectedWorkout.exercises.length - 1}
+                        className={`${currentExerciseIndex === selectedWorkout.exercises.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-opacity-30'} bg-white bg-opacity-20 text-white px-4 py-2 rounded-full transition-all shadow-xl flex items-center gap-2`}
+                        title="Exercice suivant"
+                      >
+                        <span className="text-sm">Suivant</span>
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="flex gap-3 justify-center items-center">
+                      <button
+                        onClick={() => skipTime(-10)}
+                        className="bg-white bg-opacity-20 text-white p-4 rounded-full hover:bg-opacity-30 transition-all transform hover:scale-110 shadow-2xl"
+                        title="Reculer de 10 secondes"
+                      >
+                        <SkipBack className="w-6 h-6" />
+                      </button>
+                      <button
+                        onClick={toggleTimer}
+                        className="bg-white text-gray-900 p-6 rounded-full hover:bg-gray-100 transition-all transform hover:scale-110 shadow-2xl"
+                      >
+                        {isRunning ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8" />}
+                      </button>
+                      <button
+                        onClick={() => skipTime(10)}
+                        className="bg-white bg-opacity-20 text-white p-4 rounded-full hover:bg-opacity-30 transition-all transform hover:scale-110 shadow-2xl"
+                        title="Avancer de 10 secondes"
+                      >
+                        <SkipForward className="w-6 h-6" />
+                      </button>
+                      <button
+                        onClick={resetWorkout}
+                        className="bg-white bg-opacity-20 text-white p-4 rounded-full hover:bg-opacity-30 transition-all transform hover:scale-110 shadow-2xl"
+                        title="Recommencer"
+                      >
+                        <RotateCcw className="w-6 h-6" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {currentExerciseIndex < selectedWorkout.exercises.length - 1 && (
+                    <div className="mt-6 text-center">
+                      <p className="text-white text-sm opacity-75 mb-2">Prochain :</p>
+                      <p className="text-white text-lg font-semibold">
+                        {selectedWorkout.exercises[currentExerciseIndex + 1].name}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<WorkoutTimer />);
+    </script>
+</body>
+</html>
